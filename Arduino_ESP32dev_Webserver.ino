@@ -1,21 +1,35 @@
 // Load Wi-Fi library
 #include <WiFi.h>
+#include <ESP32Servo.h>
 
 // Network credentials
-const char* ssid = "Moti";
-const char* password = "18101965";
+const char* ssid = "";
+const char* password = "";
+// Set Static IP address
+IPAddress local_IP();
+// Set Gateway IP address
+IPAddress gateway();
+// Subnet mask
+IPAddress subnet();
+
+
+
 
 // Set web server port number to 80
-WiFiServer server(80);
+WiFiServer server();
 
 // Variable to store the HTTP request
 String header;
 
 // Auxiliar variables to store the current output state
-String gateState = "off";
+String gateState = "CLOSED";
 
-// Assign output variables to GPIO pins
+// Assign output variables to IO pin
 const int output26 = 26;
+
+// Servo def
+Servo motor;
+int pos = 0;
 
 // Current time
 unsigned long currentTime = millis();
@@ -25,15 +39,19 @@ unsigned long previousTime = 0;
 const long timeoutTime = 2000;
 
 void setup() {
+  // Configures static IP address
+  if (!WiFi.config(local_IP, gateway, subnet)) {
+  Serial.println("STA Failed to configure");
+  }
   Serial.begin(115200);
   // Initialize the output variables as outputs
-  pinMode(output26, OUTPUT);
+  //pinMode(output26, OUTPUT);
   pinMode(2, OUTPUT);
+  motor.attach(output26); // attach the servo to the IO
  
   // Set outputs to LOW
-  digitalWrite(output26, LOW);
+  //digitalWrite(output26, LOW);
  
-
   // Connect to Wi-Fi network with SSID and password
   Serial.print("Connecting to ");
   Serial.println(ssid);
@@ -45,8 +63,17 @@ void setup() {
   // Print local IP address and start web server
   Serial.println("");
   Serial.println("WiFi connected.");
-  Serial.println("IP address: ");
+  Serial.print("Local IP address: ");
   Serial.println(WiFi.localIP());
+  Serial.print("Subnet Mask: ");
+  Serial.println(WiFi.subnetMask());
+  Serial.print("Gateway IP address: ");
+  Serial.println(WiFi.gatewayIP());
+  Serial.print("DNS 1: ");
+  Serial.println(WiFi.dnsIP(0));
+  Serial.print("DNS 2: ");
+  Serial.println(WiFi.dnsIP(1));
+  
   server.begin();
 }
 
@@ -75,40 +102,41 @@ void loop(){
             client.println("Connection: close");
             client.println();
             
-            // turns the GPIOs on and off
-            if (header.indexOf("GET /26/on") >= 0) {
-              Serial.println("GPIO 26 on");
-              gateState = "on";
-              digitalWrite(output26, HIGH);
-              digitalWrite(2, HIGH);   // turn the LED on (HIGH is the voltage level)
-            } else if (header.indexOf("GET /26/off") >= 0) {
-              Serial.println("GPIO 26 off");
-              gateState = "off";
-              digitalWrite(output26, LOW);
-              digitalWrite(2, LOW);    // turn the LED off by making the voltage LOW
+            // turns the IOs on and off
+            if (header.indexOf("GET /open") >= 0) {
+              gateState = "OPEN";
+              //digitalWrite(output26, HIGH);
+              //digitalWrite(2, HIGH);   // turn the LED on (HIGH is the voltage level)
+              motor.write(180);
+            } else if (header.indexOf("GET /close") >= 0) {
+              gateState = "CLOSED";
+              //digitalWrite(output26, LOW);
+              //digitalWrite(2, LOW);    // turn the LED off by making the voltage LOW
+              motor.write(0);
             } 
             
             // Display the HTML web page
             client.println("<!DOCTYPE html><html>");
+            client.println("<body style=background-color:#212121;>");
             client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
             client.println("<link rel=\"icon\" href=\"data:,\">");
             // CSS to style the on/off buttons 
-            // Feel free to change the background-color and font-size attributes to fit your preferences
             client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
             client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
             client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-            client.println(".button2 {background-color: #555555;}</style></head>");
+            client.println(".button2 {background-color: #AF4C50;}</style></head>");
             
             // Web Page Heading
-            client.println("<body><h1>ESP32 Web Server</h1>");
+            client.println("<body><h1 style=color:white;>Home Gate</h1>");
             
-            // Display current state, and ON/OFF buttons for GPIO 26  
-            client.println("<p>GPIO 26 - State " + gateState + "</p>");
-            // If the output26State is off, it displays the ON button       
-            if (gateState=="off") {
-              client.println("<p><a href=\"/26/on\"><button class=\"button\">ON</button></a></p>");
+            
+            // Display current state, and ON/OFF buttons for IO  
+            client.println("<p style=color:white;>The gate is " + gateState + "</p>");
+            // If the gate is CLOSED, it displays the OPEN the gate button       
+            if (gateState=="CLOSED") {
+              client.println("<p><a href=\"/open\"><button class=\"button\">OPEN the gate</button></a></p>");
             } else {
-              client.println("<p><a href=\"/26/off\"><button class=\"button button2\">OFF</button></a></p>");
+              client.println("<p><a href=\"/close\"><button class=\"button button2\">CLOSE the gate</button></a></p>");
             } 
                
             
